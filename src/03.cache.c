@@ -68,7 +68,7 @@ int run_test()
 	return inc;
 }
 
-void* copy_thread(void *arg)
+void *copy_thread(void *arg)
 {
 	uint64_t avg = 0;
 
@@ -88,12 +88,12 @@ int main (int argc, char **argv)
 	}
 
 	if (sem_init(&sem_flush, 0, 0) != 0) {
-        	mprintf("Sempahore init failed\n");
+        	mprintf("Semaphore init failed\n");
 		return 1;
 	}
 
 	if (sem_init(&sem_copy, 0, 1) != 0) {
-        	mprintf("Sempahore init failed\n");
+        	mprintf("Semaphore init failed\n");
 		return 1;
 	}
 

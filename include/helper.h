@@ -7,9 +7,18 @@
 #define _HELPER_H 
 
 typedef enum {FALSE, TRUE} bool;
+typedef uint64_t ticks;
 
-void flush(void *);
 int timed_memcpy(int *, const int *, int);
+int timed_read(uint8_t *, int);
 int mprintf(const char *, ...);
+uint16_t get_smallest_idx(ticks *, unsigned);
+uint16_t get_largest_idx(ticks *, unsigned);
+uint8_t *get_rand_seq(unsigned);
+
+static inline void flush(volatile void *addr)
+{
+     asm volatile("clflush %0" : "+m" (*(volatile char *) addr));
+}
 
 #endif /* _HELPER_H */
