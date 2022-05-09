@@ -15,16 +15,17 @@
 
 #define NUM_MEASURES 	25
 #define NUM_TESTS 	1000
+#define BUFF_LEN 	2048
+#define CACHE_LINE_LEN 	64
 #define RAND_SEQ_LEN 	4
-#define BUFF_LEN 	1024
-#define SEARCH_LEN 	5
+#define SEARCH_LEN 	RAND_SEQ_LEN
 
 int data[BUFF_LEN];
 sem_t sem_search, sem_go;
 
 void print_seq(uint32_t *seq, int len)
 {
-	printf("Seq: %d", seq[0]);
+	printf("+ Seq: %d", seq[0]);
 	for (int i=1; i<len; i++) {
 		printf(", %d", seq[i]);
 	}
@@ -40,11 +41,11 @@ void *victim(void *arg)
 	rseq = get_rand_seq(RAND_SEQ_LEN, BUFF_LEN);
 	print_seq(rseq, RAND_SEQ_LEN);
 	for (int i=0; i<NUM_TESTS; i++) {
+		sem_wait(&sem_go);
 		for (int j=0; j<RAND_SEQ_LEN; j++) {
-			sem_wait(&sem_go);
 			dummy = data[rseq[j]];
-			sem_post(&sem_search);
 		}
+		sem_post(&sem_search);
 	}
 	free(rseq);
 }
@@ -58,17 +59,18 @@ uint16_t run_search()
 
 	memset(s_delta, UCHAR_MAX, SEARCH_LEN * sizeof(ticks));
 
-	for (int i=0; i<BUFF_LEN; i++) {
-		delta = timed_read((uint8_t *) data, i);	
+	for (int i=0; i<BUFF_LEN; i+=CACHE_LINE_LEN) {
+		delta = timed_read((uint8_t *) data, i+10);	
 		max = get_largest_idx(s_delta, SEARCH_LEN);
+		mprintf("idx: %d, delta: %u\n", i, max, delta);
 		if (delta < s_delta[max]) {
 			s_delta[max] = delta;
 			s_pos[max] = i;
 		}
 	}
 
-	printf(" + Found pos: ");
-	printf("%d", s_pos[0]);
+	printf("+ Found pos: ");
+	printf(" %d", s_pos[0]);
 	for (int i=1; i<SEARCH_LEN; i++) {
 		printf(", %d", s_pos[i]);	
 	}
@@ -95,15 +97,10 @@ int main (int argc, char **argv)
 	pthread_create(&id, NULL, victim, NULL);
 	for (int i=0; i<NUM_TESTS; i++) {
 		sem_wait(&sem_search);
-		printf("> Test %d\n", i);
-		sem_post(&sem_search);
+		pos = run_search();
 		flush(data);
-		for (int j=0; j<RAND_SEQ_LEN; j++) {
-			sem_wait(&sem_search);
-			pos = run_search();
-			flush(data);
-			sem_post(&sem_go);
-		}
+		usleep(500);
+		sem_post(&sem_go);
 	}
 
 	pthread_join(id, NULL);

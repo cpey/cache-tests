@@ -33,7 +33,7 @@ int timed_memcpy(int *dest, const int *orig, int size)
 int timed_read(uint8_t *arr, int pos)
 {
 	ticks ticks1, ticks2;
-	uint8_t dummy;
+	volatile uint8_t dummy;
 
 	ticks1 = getticks();
 	dummy = arr[pos];
@@ -77,15 +77,15 @@ uint16_t get_largest_idx(ticks *data, unsigned len)
 	return min;
 }
 
-uint8_t *get_rand_seq(unsigned len)
+uint32_t *get_rand_seq(unsigned len, unsigned limit)
 {
-	uint8_t *seq;
+	uint32_t *seq;
 	time_t t;
 
 	seq = malloc(len * sizeof(uint8_t));
 	srand((unsigned) time(&t));
 	for (int i; i<len; i++) {
-		seq[i] = rand() % (uint32_t) pow(2, 8*sizeof(seq[0]));
+		seq[i] = rand() % (uint32_t) limit;
 	}
 	return seq;
 }

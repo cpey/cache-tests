@@ -14,7 +14,7 @@ int timed_read(uint8_t *, int);
 int mprintf(const char *, ...);
 uint16_t get_smallest_idx(ticks *, unsigned);
 uint16_t get_largest_idx(ticks *, unsigned);
-uint8_t *get_rand_seq(unsigned);
+uint32_t *get_rand_seq(unsigned, unsigned);
 
 static inline void flush(volatile void *addr)
 {
