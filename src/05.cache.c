@@ -14,14 +14,15 @@
 #include "helper.h"
 
 #define NUM_MEASURES 	25
-#define NUM_TESTS 	1000
+#define NUM_TESTS 	3
 #define BUFF_LEN 	2048
-#define CACHE_LINE_LEN 	64
 #define RAND_SEQ_LEN 	4
 #define SEARCH_LEN 	RAND_SEQ_LEN
 
-int data[BUFF_LEN];
+uint8_t data[BUFF_LEN];
 sem_t sem_search, sem_go;
+uint32_t *rand_seq;
+float avg_diff;
 
 void print_seq(uint32_t *seq, int len)
 {
@@ -35,48 +36,46 @@ void print_seq(uint32_t *seq, int len)
 void *victim(void *arg)
 {
 	uint64_t avg = 0;
-	uint32_t *rseq;
 	volatile uint8_t dummy;
 
-	rseq = get_rand_seq(RAND_SEQ_LEN, BUFF_LEN);
-	print_seq(rseq, RAND_SEQ_LEN);
+	rand_seq = get_rand_seq(RAND_SEQ_LEN, BUFF_LEN);
+	sort(rand_seq, 0, RAND_SEQ_LEN-1);
+	print_seq(rand_seq, RAND_SEQ_LEN);
 	for (int i=0; i<NUM_TESTS; i++) {
 		sem_wait(&sem_go);
 		for (int j=0; j<RAND_SEQ_LEN; j++) {
-			dummy = data[rseq[j]];
+			dummy = data[rand_seq[j]];
 		}
 		sem_post(&sem_search);
 	}
-	free(rseq);
 }
 
-uint16_t run_search()
+void run_search()
 {
 	uint64_t delta;
 	ticks s_delta[SEARCH_LEN];
-	uint16_t s_pos[SEARCH_LEN];
+	int32_t s_pos[SEARCH_LEN];
 	uint8_t min, max;	
+	uint32_t diff;
+	uint8_t d;
 
 	memset(s_delta, UCHAR_MAX, SEARCH_LEN * sizeof(ticks));
 
 	for (int i=0; i<BUFF_LEN; i+=CACHE_LINE_LEN) {
-		delta = timed_read((uint8_t *) data, i+10);	
+		delta = probe((uint8_t *) (data + i));
 		max = get_largest_idx(s_delta, SEARCH_LEN);
-		mprintf("idx: %d, delta: %u\n", i, max, delta);
+		mprintf("idx: %d, delta: %u\n", i, delta);
 		if (delta < s_delta[max]) {
 			s_delta[max] = delta;
 			s_pos[max] = i;
 		}
 	}
 
-	printf("+ Found pos: ");
-	printf(" %d", s_pos[0]);
-	for (int i=1; i<SEARCH_LEN; i++) {
-		printf(", %d", s_pos[i]);	
-	}
-	printf("\n");
-	min = get_smallest_idx(s_delta, SEARCH_LEN);
-	return s_pos[min];
+	sort(s_pos, 0, SEARCH_LEN - 1);
+	diff = sum_abs_diffs(rand_seq, s_pos, SEARCH_LEN);
+	mprint_arr(s_pos, SEARCH_LEN, "+ Found pos:");
+	mprintf("  -> diff: %d\n", diff);
+	avg_diff += diff / NUM_TESTS;
 }
 
 int main (int argc, char **argv)
@@ -97,11 +96,10 @@ int main (int argc, char **argv)
 	pthread_create(&id, NULL, victim, NULL);
 	for (int i=0; i<NUM_TESTS; i++) {
 		sem_wait(&sem_search);
-		pos = run_search();
-		flush(data);
-		usleep(500);
+		run_search();
 		sem_post(&sem_go);
 	}
 
 	pthread_join(id, NULL);
+	printf("Average diff: %.02f\n", avg_diff);
 }
